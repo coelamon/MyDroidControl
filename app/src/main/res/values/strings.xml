@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">My Droid Control</string>
+
+    <!-- Strings related to login -->
+    <string name="prompt_ip">IP</string>
+    <string name="prompt_port">Port</string>
+    <string name="prompt_password">Password</string>
+    <string name="action_connect">Connect</string>
+
+    <string name="error_message">Error Message</string>
+    <string name="action_ok">OK</string>
+
+    <string name="action_forward">FWD</string>
+    <string name="action_backward">BACK</string>
+    <string name="action_forward_short">F</string>
+    <string name="action_backward_short">B</string>
+
+    <string name="action_left">LEFT</string>
+    <string name="action_right">RIGHT</string>
+    <string name="action_left_short">L</string>
+    <string name="action_right_short">R</string>
+
+    <string name="action_camera">CAMERA</string>
+    <string name="action_camera_short">C</string>
+</resources>
