@@ -1,6 +1,10 @@
 package com.coel.mydroidcontrol;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -11,6 +15,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -27,12 +32,14 @@ public class MainActivity extends AppCompatActivity {
     TextView m_portTextView = null;
     TextView m_passwordTextView = null;
     TextView m_errorMessageTextView = null;
+    ImageView m_cameraView = null;
     Button m_connectButton = null;
     Button m_errorOkButton = null;
     Button m_moveForwardButton = null;
     Button m_moveBackwardButton = null;
     Button m_turnLeftButton = null;
     Button m_turnRightButton = null;
+    Button m_cameraButton = null;
     SeekBar m_speedBar = null;
     MyDroidInput m_droidInput = null;
 
@@ -59,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
         m_turnLeftButton = (Button)m_mainForm.findViewById(R.id.button_left);
         m_turnRightButton = (Button)m_mainForm.findViewById(R.id.button_right);
         m_speedBar = (SeekBar)m_mainForm.findViewById(R.id.seekbar_speed);
+        m_cameraView = (ImageView)m_mainForm.findViewById(R.id.image_camera);
+        m_cameraButton = (Button)m_mainForm.findViewById(R.id.button_camera);
 
         m_connectForm = (ViewGroup)m_formContainer.findViewById(R.id.connect_form);
         m_connectForm.setVisibility(View.GONE);
@@ -99,6 +108,29 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onDisconnect(MyDroidClient cl) {
                 showErrorForm("disconnected");
+            }
+        });
+
+        m_client.setOnCaptureListener(new MyDroidClient.OnCaptureListener() {
+            @Override
+            public void onCapture(MyDroidClient cl, MyDroidCameraCapture capture) {
+                Bitmap bitmap = capture.createBitmap();
+
+                int delta = 4 * bitmap.getHeight() / 3 - bitmap.getWidth();
+                if (delta > 0) {
+                    Bitmap newBitmap = Bitmap.createBitmap(bitmap.getWidth() + delta,
+                            bitmap.getHeight(), Bitmap.Config.ARGB_8888);
+                    Canvas c = new Canvas(newBitmap);
+                    c.drawBitmap(bitmap,
+                                new Rect(0,0,bitmap.getWidth(),bitmap.getHeight()),
+                                new Rect(0,0,bitmap.getWidth() + delta, bitmap.getHeight()),
+                                null);
+                    bitmap = newBitmap;
+                }
+
+                m_cameraView.setImageDrawable(new BitmapDrawable(bitmap));
+
+                m_cameraButton.setEnabled(true);
             }
         });
 
@@ -239,6 +271,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
 
+            }
+        });
+
+        m_cameraButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                m_cameraButton.setEnabled(false);
+                m_client.capture();
             }
         });
 

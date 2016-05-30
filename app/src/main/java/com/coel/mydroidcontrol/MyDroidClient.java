@@ -36,15 +36,20 @@ public class MyDroidClient {
     private volatile Handler m_uiHandler;
     private volatile Handler m_clientHandler;
     private Thread m_clientThread;
+    private byte[] m_captureData;
+    private boolean m_receivingShot;
+    private int m_shotPixelsReceived;
     private OnAuthListener m_OnAuthListener;
     private OnAuthErrorListener m_OnAuthErrorListener;
     private OnDisconnectListener m_OnDisconnectListener;
+    private OnCaptureListener m_OnCaptureListener;
 
     public MyDroidClient() {
         m_state = MyDroidClientState.DISCONNECTED;
         m_socket = null;
         createUiHandler();
         m_clientHandler = null;
+        m_captureData = new byte[40*120];
     }
 
     public int getState() {
@@ -75,6 +80,10 @@ public class MyDroidClient {
         sendMessageToClientThread(MyDroidClientThreadMessage.INPUT, msgdata);
     }
 
+    public void capture() {
+        sendMessageToClientThread(MyDroidClientThreadMessage.CAPTURE, null);
+    }
+
     private void createUiHandler() {
         final MyDroidClient client = this;
         m_uiHandler = new Handler() {
@@ -85,6 +94,11 @@ public class MyDroidClient {
                     case MyDroidUiThreadMessage.AUTH_OK:
                         if (m_OnAuthListener != null) {
                             m_OnAuthListener.onAuth(client, true);
+                        }
+                        break;
+                    case MyDroidUiThreadMessage.CAPTURE:
+                        if (m_OnCaptureListener != null) {
+                            m_OnCaptureListener.onCapture(client, createCameraCapture());
                         }
                         break;
                     case MyDroidUiThreadMessage.AUTH_FAIL:
@@ -134,6 +148,9 @@ public class MyDroidClient {
                                 break;
                             case MyDroidClientThreadMessage.INPUT:
                                 onUiMessageNewInput(msg);
+                                break;
+                            case MyDroidClientThreadMessage.CAPTURE:
+                                onUiMessageCapture(msg);
                                 break;
                         };
                     }
@@ -312,6 +329,23 @@ public class MyDroidClient {
         }
     }
 
+    private void onUiMessageCapture(Message msg) {
+        byte[] packet_data = new byte[8];
+        MyDroidProtocol.putSignature(packet_data);
+        packet_data[4] = MyDroidProtocol.NETMSG_CAPTURE_SHOT;
+        packet_data[5] = 0;
+        packet_data[6] = 0;
+        packet_data[7] = 0;
+        DatagramPacket packet = new DatagramPacket(packet_data, packet_data.length);
+        packet.setAddress(m_droidAddress);
+        packet.setPort(m_droidPort);
+        try {
+            m_socket.send(packet);
+        } catch(java.io.IOException ex) {
+            Log.e("mydroidcontrol", ex.getMessage());
+        }
+    }
+
     private void sendInput() {
         m_anyInputSent = true;
         m_lastInputSendMillis = System.currentTimeMillis();
@@ -339,6 +373,29 @@ public class MyDroidClient {
         } catch(java.io.IOException ex) {
             Log.e("mydroidcontrol", ex.getMessage());
         }
+    }
+
+    private void scheduleTestCapture() {
+        Runnable captureRunnable = new Runnable() {
+            public void run() {
+                for (int j = 0; j < 120; j++) {
+                    for (int i = 0; i < 80; i++) {
+                        byte v = 0;
+                        if (((i / 4) % 2 + (j / 4) % 2) % 2 == 0) {
+                            v = (byte)255;
+                        }
+                        int dst = j * 40 + (int)(i / 2);
+                        if (i % 2 == 0) {
+                            m_captureData[dst] = (byte)(v >>> 4);
+                        } else {
+                            m_captureData[dst] |= (byte)(v & 0xF0);
+                        }
+                    }
+                }
+                sendMessageToUiThread(MyDroidUiThreadMessage.CAPTURE, null);
+            }
+        };
+        m_clientHandler.postDelayed(captureRunnable, 1000);
     }
 
     private void scheduleReceiveDatagram() {
@@ -457,6 +514,41 @@ public class MyDroidClient {
             sendMessageToUiThread(MyDroidUiThreadMessage.DISCONNECT, null);
             return;
         }
+        if (msgid == MyDroidProtocol.NETMSG_SHOT_BEGIN) {
+            m_receivingShot = true;
+            m_shotPixelsReceived = 0;
+            return;
+        }
+        if (msgid == MyDroidProtocol.NETMSG_SHOT_PIECE) {
+            processShotPiece(msgdata);
+            return;
+        }
+        if (msgid == MyDroidProtocol.NETMSG_SHOT_END) {
+            m_receivingShot = false;
+            sendMessageToUiThread(MyDroidUiThreadMessage.CAPTURE, null);
+            return;
+        }
+    }
+
+    private void processShotPiece(byte[] msgdata) {
+        int x = (msgdata[0] & 0xFF) | ((msgdata[1] & 0xFF) << 8);
+        int y = (msgdata[2] & 0xFF) | ((msgdata[3] & 0xFF) << 8);
+        int num = (msgdata[4] & 0xFF) | ((msgdata[5] & 0xFF) << 8);
+        int dst = y * 80 + x;
+        for (int i = 0, j = dst; i < num; i++, j++) {
+            int v = 0;
+            if (i % 2 == 0) {
+                v = msgdata[6 + i / 2] & 0x0F;
+            } else {
+                v = (msgdata[6 + i / 2] & 0xF0) >> 4;
+            }
+            if (j % 2 == 0) {
+                m_captureData[j / 2] = (byte)((m_captureData[j / 2] & 0xF0) | (v));
+            } else {
+                m_captureData[j / 2] = (byte)((m_captureData[j / 2] & 0x0F) | (v << 4));
+            }
+        }
+        m_shotPixelsReceived += num;
     }
 
     private void sendMessageToUiThread(int what, Bundle msgdata) {
@@ -483,6 +575,10 @@ public class MyDroidClient {
         m_clientHandler.sendMessage(msg);
     }
 
+    private MyDroidCameraCapture createCameraCapture() {
+        return new MyDroidCameraCapture(MyDroidCameraCapture.Format.GRAY_4BIT, 80, 120, m_captureData.clone());
+    }
+
     public void setOnAuthListener(OnAuthListener listener) {
         m_OnAuthListener = listener;
     }
@@ -495,20 +591,9 @@ public class MyDroidClient {
         m_OnDisconnectListener = listener;
     }
 
-    /* TODO:
-    public void captureShot();
-    public void lockShot() throws IllegalStateException;
-    public int getShotWidth();
-    public int getShotHeight();
-    public int getShotFormat();
-    public byte[] getShotData();
-    public void unlockShot();
     public void setOnCaptureListener(OnCaptureListener listener) {
+        m_OnCaptureListener = listener;
     }
-    public interface OnCaptureListener {
-        void onCapture(MyDroidClient cl);
-    }
-     */
 
     /**
      * Interface definition for a callback to be invoked when auth response received
@@ -529,5 +614,9 @@ public class MyDroidClient {
 
     public interface OnAuthErrorListener {
         void onAuthError(MyDroidClient cl, String errorMessage);
+    }
+
+    public interface OnCaptureListener {
+        void onCapture(MyDroidClient cl, MyDroidCameraCapture capture);
     }
 }

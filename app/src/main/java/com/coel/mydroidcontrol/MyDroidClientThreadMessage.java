@@ -8,4 +8,5 @@ public class MyDroidClientThreadMessage {
     public static final int CONNECT = 2;
     public static final int DISCONNECT = 3;
     public static final int INPUT = 4;
+    public static final int CAPTURE = 5;
 }
