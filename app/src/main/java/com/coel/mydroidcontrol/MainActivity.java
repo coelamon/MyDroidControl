@@ -14,6 +14,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -28,8 +30,8 @@ public class MainActivity extends AppCompatActivity {
     ViewGroup m_connectForm = null;
     ViewGroup m_progressForm = null;
     ViewGroup m_errorForm = null;
-    TextView m_ipTextView = null;
-    TextView m_portTextView = null;
+    AutoCompleteTextView m_ipTextView = null;
+    AutoCompleteTextView m_portTextView = null;
     TextView m_passwordTextView = null;
     TextView m_errorMessageTextView = null;
     ImageView m_cameraView = null;
@@ -42,6 +44,14 @@ public class MainActivity extends AppCompatActivity {
     Button m_cameraButton = null;
     SeekBar m_speedBar = null;
     MyDroidInput m_droidInput = null;
+
+    private static final String[] IP_AUTOCOMPLETE_LIST = new String[] {
+            "192.168.4.1"
+    };
+
+    private static final String[] PORT_AUTOCOMPLETE_LIST = new String[] {
+            "1234"
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,8 +81,8 @@ public class MainActivity extends AppCompatActivity {
 
         m_connectForm = (ViewGroup)m_formContainer.findViewById(R.id.connect_form);
         m_connectForm.setVisibility(View.GONE);
-        m_ipTextView = (TextView)m_connectForm.findViewById(R.id.input_ip);
-        m_portTextView = (TextView)m_connectForm.findViewById(R.id.input_port);
+        m_ipTextView = (AutoCompleteTextView)m_connectForm.findViewById(R.id.input_ip);
+        m_portTextView = (AutoCompleteTextView)m_connectForm.findViewById(R.id.input_port);
         m_passwordTextView = (TextView)m_connectForm.findViewById(R.id.input_password);
         m_connectButton = (Button)m_connectForm.findViewById(R.id.button_connect);
 
@@ -83,6 +93,15 @@ public class MainActivity extends AppCompatActivity {
         m_errorForm.setVisibility(View.GONE);
         m_errorMessageTextView = (TextView)m_errorForm.findViewById(R.id.output_error_message);
         m_errorOkButton = (Button)m_errorForm.findViewById(R.id.button_ok);
+
+        // add autocomplete lists
+        ArrayAdapter<String> adapter =
+                new ArrayAdapter<>(MainActivity.this,
+                        android.R.layout.simple_dropdown_item_1line, IP_AUTOCOMPLETE_LIST);
+        m_ipTextView.setAdapter(adapter);
+        adapter = new ArrayAdapter<>(MainActivity.this,
+                        android.R.layout.simple_dropdown_item_1line, PORT_AUTOCOMPLETE_LIST);
+        m_portTextView.setAdapter(adapter);
 
         m_formContainer.setVisibility(View.VISIBLE);
 
